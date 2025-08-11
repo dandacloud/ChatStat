@@ -1,3 +1,7 @@
+import json, itertools, base64
+from typing import Dict, Any
+
+
 def _looks_like_excel(b: bytes) -> bool:
     # XLSX files are ZIP containers (start with "PK")
     return b[:2] == b"PK"
@@ -70,3 +74,85 @@ def load_data(file_or_url):
         if df is not None:
             return df
         raise ValueError("Unsupported file format.")
+
+def jsonstat_to_df(js: Dict[str, Any]):
+    """
+    Flatten JSON-stat v2 into a tidy pandas DataFrame:
+    columns = each dimension + 'value'
+    Works for common SSB/OECD JSON-stat responses.
+    """
+    import pandas as pd
+
+    ds = js.get("dataset") or js  # some APIs return dataset directly
+    dim = ds["dimension"]
+    ids = dim["id"]                  # e.g. ["region","contentscode","time"]
+    dims = []
+    for d in ids:
+        cat = dim[d]["category"]
+        # Prefer label if present, else index keys
+        if "label" in cat and isinstance(cat["label"], dict):
+            labels = list(cat["label"].values())
+            keys = list(cat["label"].keys())
+        else:
+            # index may be dict (key->pos) or list (ordered)
+            if isinstance(cat.get("index"), dict):
+                keys = list(cat["index"].keys())
+            else:
+                keys = cat.get("index") or cat.get("label", {}).keys() or []
+            labels = keys
+        dims.append(pd.Series(labels, index=keys, name=d).reset_index(drop=True))
+
+    # All combinations
+    grid = list(itertools.product(*[list(s.values) for s in dims]))
+    df = pd.DataFrame(grid, columns=ids)
+
+    # Values (flat list aligned to cartesian product order)
+    vals = ds.get("value", [])
+    # JSON-stat sometimes has nulls; keep as NaN
+    df["value"] = pd.to_numeric(pd.Series(vals), errors="coerce")
+
+    return df
+
+def ssb_post_to_df(url: str, payload: Dict[str, Any]):
+    import requests
+    r = requests.post(url, json=payload, timeout=30, headers={"Accept":"application/json"})
+    r.raise_for_status()
+    js = r.json()
+    try:
+        return jsonstat_to_df(js)
+    except Exception:
+        # Fall back to a generic normalize if not JSON-stat
+        import pandas as pd
+        return pd.json_normalize(js)
+params = st.experimental_get_query_params()
+
+# Existing: ?url=...
+if "url" in params and df is None:
+    try:
+        df = load_data(params["url"][0])
+        st.success(f"Data loaded from {params['url'][0]}")
+    except Exception as e:
+        st.error(f"Could not load from URL: {e}")
+
+# NEW: ?ssb_url=<POST endpoint>&ssb=<base64url_encoded_json_payload>
+if df is None and "ssb_url" in params and "ssb" in params:
+    try:
+        ssb_url = params["ssb_url"][0]
+        payload_b64 = params["ssb"][0]
+        payload_json = json.loads(base64.urlsafe_b64decode(payload_b64 + "==").decode("utf-8"))
+        df = ssb_post_to_df(ssb_url, payload_json)
+        st.success(f"Loaded via SSB POST: {ssb_url}")
+    except Exception as e:
+        st.error(f"SSB POST failed: {e}")
+
+with st.expander("SSB JSON-stat query (advanced)"):
+    ssb_url_in = st.text_input("SSB JSON-stat POST URL (ends with .json)", placeholder="https://api.statbank.no:443/statbank-api-no-no/table/XXXX?contentType=JSON")
+    payload_txt = st.text_area("Payload (JSON)", height=180, placeholder='{"query":[...],"response":{"format":"JSON-STAT2"}}')
+    if st.button("Run SSB query"):
+        try:
+            payload_obj = json.loads(payload_txt)
+            df = ssb_post_to_df(ssb_url_in, payload_obj)
+            st.success("SSB query loaded.")
+        except Exception as e:
+            st.error(f"Bad URL or payload: {e}")
+
