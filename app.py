@@ -6,7 +6,13 @@ from io import StringIO
 from datetime import datetime
 from dateutil.parser import parse as date_parse
 
-st.set_page_config(page_title="Chatstat", page_icon="📊", layout="wide")
+import streamlit as st
+
+st.set_page_config(
+    page_title="Chatstat",
+    page_icon="logo.png",  # eller ":bar_chart:" for emoji
+    layout="wide"
+)
 
 # --- Logo og tittel ---
 st.markdown("""
