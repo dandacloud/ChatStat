@@ -1,0 +1,15 @@
+{
+  "name": "demo",
+  "title": "Demo – Chatstat",
+  "source": "demo",
+  "source_url": "",
+  "method": "manual",
+  "licence": "Demo",
+  "tags": [
+    "demo",
+    "standard"
+  ],
+  "description": "Demodata for å teste UI",
+  "retrieved_at": "2025-08-11T00:38:33.239606Z",
+  "rows": 2
+}
