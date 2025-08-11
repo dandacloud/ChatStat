@@ -124,7 +124,20 @@ def ssb_post_to_df(url: str, payload: Dict[str, Any]):
         # Fall back to a generic normalize if not JSON-stat
         import pandas as pd
         return pd.json_normalize(js)
-params = st.experimental_get_query_params()
+
+# ---- Query params (compatible across Streamlit versions)
+try:
+    # Newer Streamlit (1.25+): .query_params
+    qp = st.query_params
+    # Convert to the same structure as experimental_get_query_params
+    params = {k: ([v] if isinstance(v, str) else list(v)) for k, v in qp.items()}
+except Exception:
+    try:
+        # Older API (still present in many builds)
+        params = st.experimental_get_query_params()
+    except Exception:
+        params = {}
+
 
 # Existing: ?url=...
 if "url" in params and df is None:
