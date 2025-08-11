@@ -1,5 +1,9 @@
 # Chatstat (Streamlit Cloud)
 
+**Runtime**
+- Python: 3.10 (låst i `runtime.txt`)
+- Krav: se `requirements.txt`
+
 En mobilvennlig, kilde-agnostisk app for å vise, rangere og dele statistikk fra mange kilder (Udir, SSB, kommuner, m.m.).
 Klar til å deployes på **Streamlit Community Cloud**.
 
